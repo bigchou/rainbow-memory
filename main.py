@@ -4,18 +4,22 @@ import random
 from collections import defaultdict
 
 import numpy as np
-import torch
+import torch, rmcifar, pdb, json
+from copy import deepcopy
 from randaugment import RandAugment
+from sklearn.model_selection import train_test_split
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms
-
+from torch.utils.data import Dataset, DataLoader
 from configuration import config
 from utils.augment import Cutout, select_autoaugment
 from utils.data_loader import get_test_datalist, get_statistics
 from utils.data_loader import get_train_datalist
 from utils.method_manager import select_method
-
+from utils.timer import central_timer
+from utils.data_loader import get_train_collection_name
+from evaluate import eval, compute_acc
 
 def main():
     args = config.base_parser()
@@ -24,12 +28,18 @@ def main():
     tr_names = ""
     for trans in args.transforms:
         tr_names += "_" + trans
-    save_path = f"{args.dataset}/{args.mode}_{args.mem_manage}_{args.stream_env}_msz{args.memory_size}_rnd{args.rnd_seed}{tr_names}"
+    now = central_timer
+    save_path = f"{now}_{args.dataset}/{args.mode}_{args.mem_manage}_{args.stream_env}_msz{args.memory_size}_rnd{args.rnd_seed}{tr_names}"
+    os.makedirs(f"logs/{now}_{args.dataset}", exist_ok=True)#create logs
+    os.makedirs(f"results/{now}_{args.dataset}", exist_ok=True)#create results
+    writer = SummaryWriter(f"tensorboard/{central_timer}")#create tensorboard
+    args.save_path = f"results/{now}_{args.dataset}"#save model path <------------
 
+
+
+    # Set logger
     logging.config.fileConfig("./configuration/logging.conf")
     logger = logging.getLogger()
-
-    os.makedirs(f"logs/{args.dataset}", exist_ok=True)
     fileHandler = logging.FileHandler("logs/{}.log".format(save_path), mode="w")
     formatter = logging.Formatter(
         "[%(levelname)s] %(filename)s:%(lineno)d > %(message)s"
@@ -37,8 +47,7 @@ def main():
     fileHandler.setFormatter(formatter)
     logger.addHandler(fileHandler)
 
-    writer = SummaryWriter("tensorboard")
-
+    # Set device
     if torch.cuda.is_available():
         device = torch.device("cuda")
     else:
@@ -92,6 +101,10 @@ def main():
     logger.info(f"[2] Incrementally training {args.n_tasks} tasks")
     task_records = defaultdict(list)
 
+    ###############################
+    prev_gallery_features, prev_gallery_labels = None, None # for retrieval setting
+    ###############################
+
     for cur_iter in range(args.n_tasks):
         if args.mode == "joint" and cur_iter > 0:
             return
@@ -104,10 +117,26 @@ def main():
         task_acc = 0.0
         eval_dict = dict()
 
-
+        #*********************************************************************************************************
         # get datalist
-        cur_train_datalist = get_train_datalist(args, cur_iter)
-        cur_test_datalist = get_test_datalist(args, args.exp_name, cur_iter)
+        #cur_train_datalist = get_train_datalist(args, cur_iter)
+        #cur_test_datalist = get_test_datalist(args, args.exp_name, cur_iter)
+        ### Blurry Setting ###
+        cur_train_datalist, cur_test_datalist = [], []
+        for cur_iter_ in range(args.n_tasks):
+            colname = get_train_collection_name(dataset=args.dataset,exp=args.exp_name,rnd=args.rnd_seed,n_cls=args.n_cls_a_task,iter=cur_iter_,)
+            with open(f"collections/{args.dataset}/{colname}.json","r") as f: X = json.load(f)
+            y = [item['label'] for item in X]
+            X_train, X_val, _, _ = train_test_split(X, y,stratify=y, test_size=0.1,random_state=args.rnd_seed)# seed for reproducibility
+            if cur_iter == cur_iter_:
+                cur_train_datalist.extend(X_train)
+                logger.info(f"[Train] Get datalist {cur_iter_} from {colname}.json")
+            cur_test_datalist.extend(X_val)
+            logger.info(f"[Test] Get datalist {cur_iter_} from {colname}.json")
+        #*********************************************************************************************************
+        
+
+
 
         # Reduce datalist in Debug mode
         if args.debug:
@@ -123,6 +152,13 @@ def main():
 
         # The way to handle streamed samles
         logger.info(f"[2-3] Start to train under {args.stream_env}")
+
+
+        ##############################################
+        if args.mode == "ewc":# original ewc stores no memory
+            method.memory_list = []
+        ##############################################
+
 
         if args.stream_env == "offline" or args.mode == "joint" or args.mode == "gdumb":
             # Offline Train
@@ -169,6 +205,53 @@ def main():
         # Notify to NSML
         logger.info("[2-5] Report task result")
         writer.add_scalar("Metrics/TaskAcc", task_acc, cur_iter)
+
+
+
+
+
+
+
+
+
+
+        #pdb.set_trace()
+        ###########################################################################################
+        # Evaluate Image Retrieval
+        rmdataset = rmcifar.CIFAR100_BLUR10
+        ### load gallery data
+        eval_trainset = rmdataset(mode="gallery", session_id=cur_iter,seed=args.rnd_seed)
+        eval_trainloader = DataLoader(eval_trainset, batch_size=100, shuffle=False, num_workers=8)
+        ### load testing query data
+        testset = rmdataset(mode="test",session_id=cur_iter,seed=args.rnd_seed)
+        testloader = DataLoader(testset, batch_size=100, shuffle=False, num_workers=8)
+        # load model with highest validation accuracy
+        ckptpath = '%s/ckpt_session%d.pth'%(method.save_path,cur_iter)
+        ckpt = torch.load(ckptpath)
+        tmpnet = deepcopy(method.model)
+        tmpnet.load_state_dict(ckpt['net'])
+        print("load model with highest validation accuracy")
+        record, curr_gallery_features, curr_gallery_labels, prev_gallery_features, prev_gallery_labels = eval(
+            tmpnet, testloader, eval_trainloader, 8,
+            session_id=cur_iter,
+            reindex=False,
+            prev_gallery_features=prev_gallery_features,
+            prev_gallery_labels=prev_gallery_labels,
+        )
+        final_acc = compute_acc(tmpnet,testloader)
+        record["cls_acc"] = final_acc
+        
+        if prev_gallery_features is not None:
+            prev_gallery_features = np.vstack((curr_gallery_features,prev_gallery_features))
+            prev_gallery_labels = np.vstack((curr_gallery_labels,prev_gallery_labels))
+        else:#prev_gallery_features is None
+            prev_gallery_features = curr_gallery_features
+            prev_gallery_labels = curr_gallery_labels
+        
+        np.save('%s/gallery_features_session%d.npy'%(method.save_path,cur_iter),prev_gallery_features)
+        np.save('%s/gallery_labels_session%d.npy'%(method.save_path,cur_iter),prev_gallery_labels)
+        with open(os.path.join(method.save_path,"result_session%d.json"%(cur_iter)),"w",encoding="utf-8") as f: json.dump(record,f)
+
 
     np.save(f"results/{save_path}.npy", task_records["task_acc"])
 

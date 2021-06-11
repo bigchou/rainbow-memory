@@ -1,15 +1,15 @@
 #/bin/bash
 
 # CIL CONFIG
-MODE="rm" # joint, gdumb, icarl, rm, ewc, rwalk, bic
+MODE="ewc" # joint, gdumb, icarl, rm, ewc, rwalk, bic
 # "default": If you want to use the default memory management method.
 MEM_MANAGE="default" # default, random, reservoir, uncertainty, prototype.
 RND_SEED=1
-DATASET="cifar10" # mnist, cifar10, cifar100, imagenet
-STREAM="online" # offline, online
+DATASET="cifar100" # mnist, cifar10, cifar100, imagenet
+STREAM="offline" # offline, online
 EXP="blurry10" # disjoint, blurry10, blurry30
-MEM_SIZE=500 # cifar10: k={200, 500, 1000}, mnist: k=500, cifar100: k=2,000, imagenet: k=20,000
-TRANS="cutmix autoaug" # multiple choices: cutmix, cutout, randaug, autoaug
+MEM_SIZE=2000 # cifar10: k={200, 500, 1000}, mnist: k=500, cifar100: k=2,000, imagenet: k=20,000
+TRANS="autoaug" # multiple choices: cutmix, cutout, randaug, autoaug
 
 N_WORKER=4
 JOINT_ACC=0.0 # training all the tasks at once.
@@ -19,15 +19,12 @@ UNCERT_METRIC="vr_randaug"
 PRETRAIN="" INIT_MODEL="" INIT_OPT="--init_opt"
 
 # iCaRL
-FEAT_SIZE=2048
+FEAT_SIZE=128
 
 # BiC
 distilling="--distilling" # Normal BiC. If you do not want to use distilling loss, then "".
 
-if [ -d "tensorboard" ]; then
-    rm -rf tensorboard
-    echo "Remove the tensorboard dir"
-fi
+
 
 if [ "$DATASET" == "mnist" ]; then
     TOTAL=50000 N_VAL=250 N_CLASS=10 TOPK=1
@@ -55,7 +52,7 @@ elif [ "$DATASET" == "cifar10" ]; then
     fi
 elif [ "$DATASET" == "cifar100" ]; then
     TOTAL=50000 N_VAL=0 N_CLASS=100 TOPK=1
-    MODEL_NAME="resnet32"
+    MODEL_NAME="resnet18"
     N_EPOCH=256; BATCHSIZE=16; LR=0.03 OPT_NAME="sgd" SCHED_NAME="cos"
     if [ "${MODE_LIST[0]}" == "joint" ]; then
         N_INIT_CLS=100 N_CLS_A_TASK=100 N_TASKS=1

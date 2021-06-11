@@ -49,6 +49,7 @@ def select_model(model_name, dataset, num_classes=None):
             "affine_bn": True,
             "bn_eps": 1e-6,
             "compression": 0.5,
+            "feature_size": 128,
         }
     )
 

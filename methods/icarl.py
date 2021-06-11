@@ -14,9 +14,10 @@ from torch.utils.tensorboard import SummaryWriter
 from methods.finetune import Finetune
 from utils.data_loader import cutmix_data
 from utils.train_utils import select_optimizer
+from utils.timer import central_timer
 
 logger = logging.getLogger()
-writer = SummaryWriter("tensorboard")
+writer = SummaryWriter(f"tensorboard/{central_timer}")#create tensorboard
 
 
 class ICaRLNet(nn.Module):
@@ -294,7 +295,12 @@ class ICaRL(Finetune):
         self.compute_means = True
         self.update_memory(cur_iter, self.num_learning_class)
         eval_dict = self.icarl_evaluation(test_loader)
-        best_acc = max(best_acc, eval_dict["avg_acc"])
+        #best_acc = max(best_acc, eval_dict["avg_acc"])
+        if eval_dict["avg_acc"] > best_acc:
+            best_acc = eval_dict["avg_acc"]
+            print('Saving..')
+            state = {'net': self.model.state_dict(),'acc': best_acc,'epoch': epoch,}
+            torch.save(state, '%s/ckpt_session%d.pth'%(self.save_path,cur_iter))
 
         return best_acc, eval_dict
 

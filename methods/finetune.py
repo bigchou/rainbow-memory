@@ -17,9 +17,10 @@ from utils.augment import Cutout, Invert, Solarize, select_autoaugment
 from utils.data_loader import ImageDataset
 from utils.data_loader import cutmix_data
 from utils.train_utils import select_model, select_optimizer
+from utils.timer import central_timer
 
 logger = logging.getLogger()
-writer = SummaryWriter("tensorboard")
+writer = SummaryWriter(f"tensorboard/{central_timer}")#create tensorboard
 
 
 class ICaRLNet(nn.Module):
@@ -82,6 +83,9 @@ class Finetune:
         self.mode = kwargs["mode"]
 
         self.uncert_metric = kwargs["uncert_metric"]
+
+        #####
+        self.save_path = kwargs['save_path']
 
     def set_current_dataset(self, train_datalist, test_datalist):
         random.shuffle(train_datalist)
@@ -268,7 +272,12 @@ class Finetune:
                 f"lr {self.optimizer.param_groups[0]['lr']:.4f}"
             )
 
-            best_acc = max(best_acc, eval_dict["avg_acc"])
+            #best_acc = max(best_acc, eval_dict["avg_acc"])
+            if eval_dict["avg_acc"] > best_acc:
+                best_acc = eval_dict["avg_acc"]
+                print('Saving..')
+                state = {'net': self.model.state_dict(),'acc': best_acc,'epoch': epoch,}
+                torch.save(state, '%s/ckpt_session%d.pth'%(self.save_path,cur_iter))
 
         return best_acc, eval_dict
 

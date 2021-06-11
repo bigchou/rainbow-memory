@@ -192,7 +192,11 @@ class ResNet(nn.Module):
             assert 1 == 2
         self.pool = nn.AdaptiveAvgPool2d(1)
         self.dim_out = out_planes * block.expansion
-        self.fc = FinalBlock(opt=opt, in_channels=out_planes * block.expansion)
+
+        self.embedding = nn.Linear(out_planes * block.expansion, opt.feature_size)#<--- embedding layer to control embedding size
+
+
+        self.fc = FinalBlock(opt=opt, in_channels=opt.feature_size)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -201,7 +205,7 @@ class ResNet(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x):
+    def forward(self, x, feat=False):
         out = self.initial(x)
         out = self.group1(out)
         out = self.group2(out)
@@ -210,5 +214,9 @@ class ResNet(nn.Module):
             out = self.group4(out)
         out = self.pool(out)
         out = out.view(x.size(0), -1)
-        out = self.fc(out)
+        ######
+        emb = self.embedding(out)
+        if feat: return emb
+        ######
+        out = self.fc(emb)
         return out

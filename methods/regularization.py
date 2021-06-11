@@ -13,8 +13,10 @@ from torch.utils.tensorboard import SummaryWriter
 from methods.finetune import Finetune
 from utils.data_loader import cutmix_data
 
+from utils.timer import central_timer
+
 logger = logging.getLogger()
-writer = SummaryWriter("tensorboard")
+writer = SummaryWriter(f"tensorboard/{central_timer}")#create tensorboard
 
 
 class L2(Finetune):
@@ -115,6 +117,10 @@ class L2(Finetune):
 
             if best_acc < eval_dict["avg_acc"]:
                 best_acc = eval_dict["avg_acc"]
+                ###########
+                print('Saving..')
+                state = {'net': self.model.state_dict(),'acc': best_acc,'epoch': epoch,}
+                torch.save(state, '%s/ckpt_session%d.pth'%(self.save_path,cur_iter))
 
         # 2.Backup the weight of current task
         task_param = {}
@@ -467,6 +473,10 @@ class RWalk(L2):
 
             if best_acc < eval_dict["avg_acc"]:
                 best_acc = eval_dict["avg_acc"]
+                ########
+                print('Saving..')
+                state = {'net': self.model.state_dict(),'acc': best_acc,'epoch': epoch,}
+                torch.save(state, '%s/ckpt_session%d.pth'%(self.save_path,cur_iter))
 
         # 2.Backup the weight of current task
         task_param = {}

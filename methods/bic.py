@@ -18,10 +18,10 @@ from methods.finetune import Finetune
 from utils.data_loader import ImageDataset
 from utils.train_utils import select_model
 from torch.utils.tensorboard import SummaryWriter
+from utils.timer import central_timer
 
 logger = logging.getLogger()
-writer = SummaryWriter("tensorboard")
-
+writer = SummaryWriter(f"tensorboard/{central_timer}")#create tensorboard
 
 class BiasCorrectionLayer(nn.Module):
     def __init__(self):
@@ -228,6 +228,11 @@ class BiasCorrection(Finetune):
         if best_acc < eval_dict["avg_acc"]:
             best_acc = eval_dict["avg_acc"]
             self.prev_model = deepcopy(self.model)
+
+            #########
+            print('Saving..')
+            state = {'net': self.model.state_dict(),'acc': best_acc,'epoch': epoch,}
+            torch.save(state, '%s/ckpt_session%d.pth'%(self.save_path,cur_iter))
         return best_acc, eval_dict
 
     def _train(

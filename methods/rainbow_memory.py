@@ -10,8 +10,10 @@ from torch.utils.tensorboard import SummaryWriter
 from methods.finetune import Finetune
 from utils.data_loader import cutmix_data, ImageDataset
 
+from utils.timer import central_timer
+
 logger = logging.getLogger()
-writer = SummaryWriter("tensorboard")
+writer = SummaryWriter(f"tensorboard/{central_timer}")#create tensorboard
 
 
 def cycle(iterable):
@@ -101,7 +103,12 @@ class RM(Finetune):
                 f"lr {self.optimizer.param_groups[0]['lr']:.4f}"
             )
 
-            best_acc = max(best_acc, eval_dict["avg_acc"])
+            #best_acc = max(best_acc, eval_dict["avg_acc"])
+            if eval_dict["avg_acc"] > best_acc:
+                best_acc = eval_dict["avg_acc"]
+                print('Saving..')
+                state = {'net': self.model.state_dict(),'acc': best_acc,'epoch': epoch,}
+                torch.save(state, '%s/ckpt_session%d.pth'%(self.save_path,cur_iter))
 
         return best_acc, eval_dict
 
