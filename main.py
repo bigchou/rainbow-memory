@@ -122,6 +122,7 @@ def main():
         #cur_train_datalist = get_train_datalist(args, cur_iter)
         #cur_test_datalist = get_test_datalist(args, args.exp_name, cur_iter)
         ### Blurry Setting ###
+        np.random.seed(args.rnd_seed)
         cur_train_datalist, cur_test_datalist = [], []
         for cur_iter_ in range(args.n_tasks):
             colname = get_train_collection_name(dataset=args.dataset,exp=args.exp_name,rnd=args.rnd_seed,n_cls=args.n_cls_a_task,iter=cur_iter_,)
@@ -131,8 +132,13 @@ def main():
             if cur_iter == cur_iter_:
                 cur_train_datalist.extend(X_train)
                 logger.info(f"[Train] Get datalist {cur_iter_} from {colname}.json")
-            cur_test_datalist.extend(X_val)
-            logger.info(f"[Test] Get datalist {cur_iter_} from {colname}.json")
+            if "blur" in args.exp_name:
+                cur_test_datalist.extend(X_val)
+                logger.info(f"[Test] Get datalist {cur_iter_} from {colname}.json")
+            else:#"general","disjoint"
+                if cur_iter_ <= cur_iter:
+                    cur_test_datalist.extend(X_val)
+                    logger.info(f"[Test] Get datalist {cur_iter_} from {colname}.json")
         #*********************************************************************************************************
         
 
@@ -218,12 +224,18 @@ def main():
         #pdb.set_trace()
         ###########################################################################################
         # Evaluate Image Retrieval
-        rmdataset = rmcifar.CIFAR100_BLUR10
+        rmdataset = rmcifar.CIFAR100_BLUR10 if "blur" in args.exp_name else rmcifar.CIFAR100_DISJOINT
         ### load gallery data
-        eval_trainset = rmdataset(mode="gallery", session_id=cur_iter,seed=args.rnd_seed)
+        if "blur" in args.exp_name:
+            eval_trainset = rmdataset(mode="gallery", session_id=cur_iter,seed=args.rnd_seed)
+        else:
+            eval_trainset = rmdataset(mode="gallery", session_id=cur_iter,seed=args.rnd_seed,exp_name=args.exp_name)
         eval_trainloader = DataLoader(eval_trainset, batch_size=100, shuffle=False, num_workers=8)
         ### load testing query data
-        testset = rmdataset(mode="test",session_id=cur_iter,seed=args.rnd_seed)
+        if "blur" in args.exp_name:
+            testset = rmdataset(mode="test",session_id=cur_iter,seed=args.rnd_seed)
+        else:
+            testset = rmdataset(mode="test",session_id=cur_iter,seed=args.rnd_seed,exp_name=args.exp_name)
         testloader = DataLoader(testset, batch_size=100, shuffle=False, num_workers=8)
         # load model with highest validation accuracy
         ckptpath = '%s/ckpt_session%d.pth'%(method.save_path,cur_iter)

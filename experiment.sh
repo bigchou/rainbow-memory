@@ -7,7 +7,7 @@ MEM_MANAGE="default" # default, random, reservoir, uncertainty, prototype.
 RND_SEED=1
 DATASET="cifar100" # mnist, cifar10, cifar100, imagenet
 STREAM="offline" # offline, online
-EXP="blurry10" # disjoint, blurry10, blurry30
+EXP="blurry10" # disjoint, blurry10, blurry30, general10
 MEM_SIZE=2000 # cifar10: k={200, 500, 1000}, mnist: k=500, cifar100: k=2,000, imagenet: k=20,000
 TRANS="autoaug" # multiple choices: cutmix, cutout, randaug, autoaug
 
