@@ -3,6 +3,7 @@ results/
 logs/
 dataset/cifar100
 dataset/cifar100_png.tar
+dataset/TinyImagenet
 
 
 # Byte-compiled / optimized / DLL files

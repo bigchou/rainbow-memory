@@ -5,11 +5,11 @@ MODE="ewc" # joint, gdumb, icarl, rm, ewc, rwalk, bic
 # "default": If you want to use the default memory management method.
 MEM_MANAGE="default" # default, random, reservoir, uncertainty, prototype.
 RND_SEED=1
-DATASET="cifar100" # mnist, cifar10, cifar100, imagenet
+DATASET="TinyImagenet" # mnist, cifar10, cifar100, TinyImagenet, imagenet
 STREAM="offline" # offline, online
-EXP="blurry10" # disjoint, blurry10, blurry30, general10
-MEM_SIZE=2000 # cifar10: k={200, 500, 1000}, mnist: k=500, cifar100: k=2,000, imagenet: k=20,000
-TRANS="autoaug" # multiple choices: cutmix, cutout, randaug, autoaug
+EXP="blurry30" # disjoint, blurry10, blurry30, general10, general30
+MEM_SIZE=4000 # cifar10: k={200, 500, 1000}, mnist: k=500, cifar100: k=2,000, imagenet: k=20,000
+TRANS="randaug" # multiple choices: cutmix, cutout, randaug, autoaug
 
 N_WORKER=4
 JOINT_ACC=0.0 # training all the tasks at once.
@@ -61,7 +61,17 @@ elif [ "$DATASET" == "cifar100" ]; then
     else
         N_INIT_CLS=20 N_CLS_A_TASK=20 N_TASKS=5
     fi
-
+elif [ "$DATASET" == "TinyImagenet" ]; then
+    TOTAL=100000 N_VAL=0 N_CLASS=200 TOPK=1
+    MODEL_NAME="resnet18"
+    N_EPOCH=256; BATCHSIZE=64; LR=0.03 OPT_NAME="sgd" SCHED_NAME="cos"
+    if [ "${MODE_LIST[0]}" == "joint" ]; then
+        N_INIT_CLS=200 N_CLS_A_TASK=200 N_TASKS=1
+    elif [[ "$EXP" == *"blurry"* ]]; then
+        N_INIT_CLS=200 N_CLS_A_TASK=20 N_TASKS=10
+    else
+        N_INIT_CLS=20 N_CLS_A_TASK=20 N_TASKS=10
+    fi 
 elif [ "$DATASET" == "imagenet" ]; then
     TOTAL=50000 N_VAL=0 N_CLASS=1000 TOPK=5
     MODEL_NAME="resnet34"
@@ -88,3 +98,6 @@ python main.py --mode $MODE --mem_manage $MEM_MANAGE --exp_name $EXP \
 --n_worker $N_WORKER --n_epoch $N_EPOCH \
 --memory_size $MEM_SIZE --transform $TRANS --uncert_metric $UNCERT_METRIC \
 --feature_size $FEAT_SIZE $distilling --joint_acc $JOINT_ACC
+
+
+#ln -s /home/iis/Desktop/thesis2/dataset/tinyimagenet200 TinyImagenet

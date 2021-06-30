@@ -74,6 +74,8 @@ def get_train_datalist(args, cur_iter: int) -> List:
 
 
 def get_train_collection_name(dataset, exp, rnd, n_cls, iter):
+    if dataset == "TinyImagenet":
+        dataset = "tinyimagenet200"
     collection_name = "{dataset}_train_{exp}_rand{rnd}_cls{n_cls}_task{iter}".format(
         dataset=dataset, exp=exp, rnd=rnd, n_cls=n_cls, iter=iter
     )

@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from tqdm import tqdm
 from sklearn.preprocessing import normalize
-import faiss, pdb
+import faiss
 from metrics import select as metricselect
 
 # Evaluate 1 epoch
@@ -14,6 +14,7 @@ def eval(net,
         reindex,
         prev_gallery_features,
         prev_gallery_labels,
+        return_curr_gallery_names = False,
     ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     net.eval()
@@ -28,12 +29,13 @@ def eval(net,
     #################### OBTAIN GALLERY FEATURES ############
     gallery_feature_colls = []
     gallery_labels = []
+    curr_gallery_names = []
     with torch.no_grad():
         final_iter = tqdm(eval_trainloader, desc='Gallery Embedding Data...')
-        for input_img, target, _ in final_iter:
+        for input_img, target, img_name in final_iter:
+            curr_gallery_names.extend(list(img_name))
             gallery_labels.extend(target.numpy().tolist())
             emb = net(input_img.to(device),True)
-            #print(emb.shape)
             gallery_feature_colls.extend(emb.cpu().detach().numpy().tolist())
     
     curr_gallery_features = np.vstack(gallery_feature_colls).astype('float32')
@@ -92,7 +94,11 @@ def eval(net,
     }
     print("e_recall@1: ",record['e_recall_1'],"c_recall@1: ",record['c_recall_1'])
     torch.cuda.empty_cache()
-    return record, curr_gallery_features, curr_gallery_labels, prev_gallery_features, prev_gallery_labels
+
+    if return_curr_gallery_names:
+        return record, curr_gallery_features, curr_gallery_labels, curr_gallery_names
+    else:
+        return record, curr_gallery_features, curr_gallery_labels
 
 
 def compute_acc(net, valloader):
@@ -103,7 +109,6 @@ def compute_acc(net, valloader):
         for (data, target) in valloader:
             data, target = data.to(device), target.to(device)
             output = net(data)
-            #print(output.shape)
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
     total = len(valloader.dataset)

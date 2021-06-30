@@ -4,7 +4,7 @@ import random
 from collections import defaultdict
 
 import numpy as np
-import torch, rmcifar, pdb, json
+import torch, rmcifar, pdb, json, rmtinyimagenet
 from copy import deepcopy
 from randaugment import RandAugment
 from sklearn.model_selection import train_test_split
@@ -102,7 +102,7 @@ def main():
     task_records = defaultdict(list)
 
     ###############################
-    prev_gallery_features, prev_gallery_labels = None, None # for retrieval setting
+    prev_gallery_features, prev_gallery_labels, prev_gallery_names = None, None, [] # for retrieval setting
     ###############################
 
     for cur_iter in range(args.n_tasks):
@@ -121,14 +121,19 @@ def main():
         # get datalist
         #cur_train_datalist = get_train_datalist(args, cur_iter)
         #cur_test_datalist = get_test_datalist(args, args.exp_name, cur_iter)
-        ### Blurry Setting ###
+        
         np.random.seed(args.rnd_seed)
         cur_train_datalist, cur_test_datalist = [], []
         for cur_iter_ in range(args.n_tasks):
             colname = get_train_collection_name(dataset=args.dataset,exp=args.exp_name,rnd=args.rnd_seed,n_cls=args.n_cls_a_task,iter=cur_iter_,)
-            with open(f"collections/{args.dataset}/{colname}.json","r") as f: X = json.load(f)
+            if args.dataset == "TinyImagenet":
+                with open(f"collections/tinyimagenet200/{colname}.json","r") as f: X = json.load(f)
+                test_size = 0.05
+            else:
+                with open(f"collections/{args.dataset}/{colname}.json","r") as f: X = json.load(f)
+                test_size = 0.1
             y = [item['label'] for item in X]
-            X_train, X_val, _, _ = train_test_split(X, y,stratify=y, test_size=0.1,random_state=args.rnd_seed)# seed for reproducibility
+            X_train, X_val, _, _ = train_test_split(X, y,stratify=y, test_size=test_size,random_state=args.rnd_seed)# seed for reproducibility
             if cur_iter == cur_iter_:
                 cur_train_datalist.extend(X_train)
                 logger.info(f"[Train] Get datalist {cur_iter_} from {colname}.json")
@@ -224,7 +229,12 @@ def main():
         #pdb.set_trace()
         ###########################################################################################
         # Evaluate Image Retrieval
-        rmdataset = rmcifar.CIFAR100_BLUR10 if "blur" in args.exp_name else rmcifar.CIFAR100_DISJOINT
+        if "cifar" in args.dataset:
+            rmdataset = rmcifar.CIFAR100_BLUR10 if "blur" in args.exp_name else rmcifar.CIFAR100_DISJOINT
+        elif "imagenet" in args.dataset.lower():#To match TinyImagenet
+            rmdataset = rmtinyimagenet.TINYIMAGENET_BLUR30 if "blur" in args.exp_name else rmtinyimagenet.TINYIMAGENET_DISJOINT
+        else:
+            raise NotImplementedError("Implementation Not Found")
         ### load gallery data
         if "blur" in args.exp_name:
             eval_trainset = rmdataset(mode="gallery", session_id=cur_iter,seed=args.rnd_seed)
@@ -243,12 +253,13 @@ def main():
         tmpnet = deepcopy(method.model)
         tmpnet.load_state_dict(ckpt['net'])
         print("load model with highest validation accuracy")
-        record, curr_gallery_features, curr_gallery_labels, prev_gallery_features, prev_gallery_labels = eval(
+        record, curr_gallery_features, curr_gallery_labels, curr_gallery_names = eval(
             tmpnet, testloader, eval_trainloader, 8,
             session_id=cur_iter,
             reindex=False,
             prev_gallery_features=prev_gallery_features,
             prev_gallery_labels=prev_gallery_labels,
+            return_curr_gallery_names = True,
         )
         final_acc = compute_acc(tmpnet,testloader)
         record["cls_acc"] = final_acc
@@ -256,12 +267,15 @@ def main():
         if prev_gallery_features is not None:
             prev_gallery_features = np.vstack((curr_gallery_features,prev_gallery_features))
             prev_gallery_labels = np.vstack((curr_gallery_labels,prev_gallery_labels))
+            prev_gallery_names = curr_gallery_names + prev_gallery_names
         else:#prev_gallery_features is None
             prev_gallery_features = curr_gallery_features
             prev_gallery_labels = curr_gallery_labels
+            prev_gallery_names = curr_gallery_names
         
         np.save('%s/gallery_features_session%d.npy'%(method.save_path,cur_iter),prev_gallery_features)
         np.save('%s/gallery_labels_session%d.npy'%(method.save_path,cur_iter),prev_gallery_labels)
+        np.save('%s/gallery_names_session%d.npy'%(method.save_path,cur_iter),prev_gallery_names)
         with open(os.path.join(method.save_path,"result_session%d.json"%(cur_iter)),"w",encoding="utf-8") as f: json.dump(record,f)
 
 

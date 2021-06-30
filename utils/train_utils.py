@@ -57,7 +57,7 @@ def select_model(model_name, dataset, num_classes=None):
         model_class = getattr(mnist, "MLP")
     elif "cifar" in dataset:
         model_class = getattr(cifar, "ResNet")
-    elif "imagenet" in dataset:
+    elif "imagenet" in dataset.lower():#to match TinyImagenet
         model_class = getattr(imagenet, "ResNet")
     else:
         raise NotImplementedError(

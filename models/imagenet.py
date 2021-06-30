@@ -120,7 +120,11 @@ class ResNetBase(nn.Module):
         )
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.dim_out = in_channels = 512 * block.expansion
-        self.fc = FinalBlock(opt=opt, in_channels=512 * block.expansion)
+        
+
+
+        self.embedding = nn.Linear(self.dim_out, opt.feature_size)#<--- embedding layer to control embedding size
+        self.fc = FinalBlock(opt=opt, in_channels=opt.feature_size)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -176,7 +180,7 @@ class ResNetBase(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def _forward_impl(self, x):
+    def _forward_impl(self, x, feat=False):
         # See note [TorchScript super()]
         x = self.conv1block(x)
         x = self.maxpool(x)
@@ -188,14 +192,19 @@ class ResNetBase(nn.Module):
 
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
-        x = self.fc(x)
+        ######
+        emb = self.embedding(x)
+        if feat: return emb
+        ######
+
+        x = self.fc(emb)
 
         return x
 
-    def forward(self, x):
-        return self._forward_impl(x)
+    def forward(self, x, feat=False):
+        return self._forward_impl(x,feat)
 
-
+import pdb
 def ResNet(opt):
     if opt.depth == 18:
         model = ResNetBase(opt, BasicBlock, [2, 2, 2, 2])
