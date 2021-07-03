@@ -14,6 +14,11 @@ from methods.finetune import Finetune
 from utils.data_loader import cutmix_data
 
 from utils.timer import central_timer
+from utils.data_loader import ImageDataset
+from evaluate import eval
+import pandas as pd
+from torch.utils.data import DataLoader
+import os
 
 logger = logging.getLogger()
 writer = SummaryWriter(f"tensorboard/{central_timer}")#create tensorboard
@@ -77,6 +82,19 @@ class L2(Finetune):
         logger.info(f"Train samples: {len(train_list)}")
         logger.info(f"Test samples: {len(test_list)}")
 
+        #######################################################
+        retrieval = True#please set it manually!!!!!!!! (set False for the official one)
+        if retrieval:
+            eval_trainset = ImageDataset(pd.DataFrame(self.streamed_list),dataset=self.dataset,transform=self.test_transform)
+            eval_trainloader = DataLoader(eval_trainset, batch_size=batch_size, shuffle=False, num_workers=n_worker)
+            ga_feats = "%s/gallery_features_session%d.npy"%(self.save_path,cur_iter-1)
+            ga_class = "%s/gallery_labels_session%d.npy"%(self.save_path,cur_iter-1)
+            if os.path.exists(ga_feats):
+                prev_gallery_features, prev_gallery_labels = np.load(ga_feats), np.load(ga_class)
+            else:
+                prev_gallery_features, prev_gallery_labels = None, None
+        #######################################################
+
         # TRAIN
         best_acc = 0.0
         eval_dict = dict()
@@ -115,9 +133,19 @@ class L2(Finetune):
                 f"lr {self.optimizer.param_groups[0]['lr']:.4f}"
             )
 
-            if best_acc < eval_dict["avg_acc"]:
-                best_acc = eval_dict["avg_acc"]
-                ###########
+            tgt_perf = eval_dict["avg_acc"]
+            #######################################
+            if retrieval:
+                record, _, _ = eval(
+                    self.model, test_loader, eval_trainloader, n_worker,
+                    session_id=cur_iter,reindex=False,special=True,
+                    prev_gallery_features=prev_gallery_features,
+                    prev_gallery_labels=prev_gallery_labels,
+                )
+                tgt_perf = record["c_recall_1"]
+            #######################################
+            if tgt_perf > best_acc:
+                best_acc = tgt_perf
                 print('Saving..')
                 state = {'net': self.model.state_dict(),'acc': best_acc,'epoch': epoch,}
                 torch.save(state, '%s/ckpt_session%d.pth'%(self.save_path,cur_iter))
@@ -432,6 +460,19 @@ class RWalk(L2):
         logger.info(f"Train samples: {len(train_list)}")
         logger.info(f"Test samples: {len(test_list)}")
 
+        #######################################################
+        retrieval = True#please set it manually!!!!!!!! (set False for the official one)
+        if retrieval:
+            eval_trainset = ImageDataset(pd.DataFrame(self.streamed_list),dataset=self.dataset,transform=self.test_transform)
+            eval_trainloader = DataLoader(eval_trainset, batch_size=batch_size, shuffle=False, num_workers=n_worker)
+            ga_feats = "%s/gallery_features_session%d.npy"%(self.save_path,cur_iter-1)
+            ga_class = "%s/gallery_labels_session%d.npy"%(self.save_path,cur_iter-1)
+            if os.path.exists(ga_feats):
+                prev_gallery_features, prev_gallery_labels = np.load(ga_feats), np.load(ga_class)
+            else:
+                prev_gallery_features, prev_gallery_labels = None, None
+        #######################################################
+
         # TRAIN
         best_acc = 0.0
         eval_dict = dict()
@@ -471,9 +512,19 @@ class RWalk(L2):
                 f"lr {self.optimizer.param_groups[0]['lr']:.4f}"
             )
 
-            if best_acc < eval_dict["avg_acc"]:
-                best_acc = eval_dict["avg_acc"]
-                ########
+            tgt_perf = eval_dict["avg_acc"]
+            #######################################
+            if retrieval:
+                record, _, _ = eval(
+                    self.model, test_loader, eval_trainloader, n_worker,
+                    session_id=cur_iter,reindex=False,special=True,
+                    prev_gallery_features=prev_gallery_features,
+                    prev_gallery_labels=prev_gallery_labels,
+                )
+                tgt_perf = record["c_recall_1"]
+            #######################################
+            if tgt_perf > best_acc:
+                best_acc = tgt_perf
                 print('Saving..')
                 state = {'net': self.model.state_dict(),'acc': best_acc,'epoch': epoch,}
                 torch.save(state, '%s/ckpt_session%d.pth'%(self.save_path,cur_iter))

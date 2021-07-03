@@ -15,6 +15,7 @@ def eval(net,
         prev_gallery_features,
         prev_gallery_labels,
         return_curr_gallery_names = False,
+        special=False,
     ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     net.eval()
@@ -31,12 +32,19 @@ def eval(net,
     gallery_labels = []
     curr_gallery_names = []
     with torch.no_grad():
-        final_iter = tqdm(eval_trainloader, desc='Gallery Embedding Data...')
-        for input_img, target, img_name in final_iter:
-            curr_gallery_names.extend(list(img_name))
-            gallery_labels.extend(target.numpy().tolist())
-            emb = net(input_img.to(device),True)
-            gallery_feature_colls.extend(emb.cpu().detach().numpy().tolist())
+        if special:
+            for i, data in enumerate(eval_trainloader):
+                input_img, target = data["image"], data["label"]
+                gallery_labels.extend(target.numpy().tolist())
+                emb = net(input_img.to(device),True)
+                gallery_feature_colls.extend(emb.cpu().detach().numpy().tolist())
+        else:
+            final_iter = tqdm(eval_trainloader, desc='Gallery Embedding Data...')
+            for input_img, target, img_name in final_iter:
+                curr_gallery_names.extend(list(img_name))
+                gallery_labels.extend(target.numpy().tolist())
+                emb = net(input_img.to(device),True)
+                gallery_feature_colls.extend(emb.cpu().detach().numpy().tolist())
     
     curr_gallery_features = np.vstack(gallery_feature_colls).astype('float32')
     curr_gallery_features_cosine = normalize(curr_gallery_features, axis=1)
@@ -56,11 +64,18 @@ def eval(net,
     query_feature_colls = []
     query_labels = []
     with torch.no_grad():
-        final_iter = tqdm(queryloader, desc='Query Embedding Data...')
-        for input_img, target in final_iter:
-            query_labels.extend(target.numpy().tolist())
-            emb = net(input_img.to(device),True)
-            query_feature_colls.extend(emb.cpu().detach().numpy().tolist())
+        if special:
+            for i, data in enumerate(queryloader):
+                input_img, target = data["image"], data["label"]
+                query_labels.extend(target.numpy().tolist())
+                emb = net(input_img.to(device),True)
+                query_feature_colls.extend(emb.cpu().detach().numpy().tolist())
+        else:
+            final_iter = tqdm(queryloader, desc='Query Embedding Data...')
+            for input_img, target in final_iter:
+                query_labels.extend(target.numpy().tolist())
+                emb = net(input_img.to(device),True)
+                query_feature_colls.extend(emb.cpu().detach().numpy().tolist())
     query_labels = np.hstack(query_labels).reshape(-1,1)
     query_features = np.vstack(query_feature_colls).astype('float32')
     query_features_cosine = normalize(query_features, axis=1)

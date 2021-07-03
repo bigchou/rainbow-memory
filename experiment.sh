@@ -8,8 +8,8 @@ RND_SEED=1
 DATASET="dog120" # cifar100, TinyImagenet, dog120
 STREAM="offline" # offline
 EXP="general30" # disjoint, blurry10, blurry30, general10, general30
-MEM_SIZE=600 # cifar100: k=2,000, TinyImagenet: k=4,000, dog120: k=600,
-TRANS="" # multiple choices: cutmix, cutout, randaug, autoaug (TinyImagenet: randaug, cifar100: autoaug)
+MEM_SIZE=4000 # cifar100: k=2,000, TinyImagenet: k=4,000, dog120: k=600, inat17: k=4000, jd: k=3000,
+TRANS="" # multiple choices: cutmix, cutout, randaug, autoaug (TinyImagenet: randaug, cifar100: autoaug, dog120:empty, inat17: empty, jd: empty)
 
 N_WORKER=4
 JOINT_ACC=0.0 # training all the tasks at once.
@@ -26,19 +26,7 @@ distilling="--distilling" # Normal BiC. If you do not want to use distilling los
 
 
 
-if [ "$DATASET" == "mnist" ]; then
-    TOTAL=50000 N_VAL=250 N_CLASS=10 TOPK=1
-    MODEL_NAME="mlp400"
-    N_EPOCH=5; BATCHSIZE=16; LR=0.05 OPT_NAME="sgd" SCHED_NAME="cos"
-    if [ "${MODE_LIST[0]}" == "joint" ]; then
-        N_INIT_CLS=10 N_CLS_A_TASK=10 N_TASKS=1
-    elif [[ "$EXP" == *"blurry"* ]]; then
-        N_INIT_CLS=10 N_CLS_A_TASK=2 N_TASKS=5
-    else
-        N_INIT_CLS=2 N_CLS_A_TASK=2 N_TASKS=5
-
-    fi
-elif [ "$DATASET" == "cifar10" ]; then
+if [ "$DATASET" == "cifar10" ]; then
     TOTAL=50000 N_VAL=250 N_CLASS=10 TOPK=1
     MODEL_NAME="resnet18"
     N_EPOCH=256; BATCHSIZE=16; LR=0.05 OPT_NAME="sgd" SCHED_NAME="cos"
