@@ -74,7 +74,8 @@ class Finetune:
         if kwargs["mem_manage"] == "default":
             self.mem_manage = "random"
 
-        self.model = select_model(self.model_name, self.dataset, kwargs["n_init_cls"])
+        self.pretrain = kwargs["pretrain"]
+        self.model = select_model(self.model_name, self.dataset, kwargs["n_init_cls"], self.pretrain)
         self.model = self.model.to(self.device)
         self.criterion = self.criterion.to(self.device)
 

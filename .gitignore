@@ -4,6 +4,8 @@ logs/
 dataset/cifar100
 dataset/cifar100_png.tar
 dataset/TinyImagenet
+collections/dog120/
+dataset/dog120
 
 
 # Byte-compiled / optimized / DLL files

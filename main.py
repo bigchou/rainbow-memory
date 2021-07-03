@@ -4,7 +4,7 @@ import random
 from collections import defaultdict
 
 import numpy as np
-import torch, rmcifar, pdb, json, rmtinyimagenet
+import torch, rmcifar, pdb, json, rmtinyimagenet, rmdog
 from copy import deepcopy
 from randaugment import RandAugment
 from sklearn.model_selection import train_test_split
@@ -14,7 +14,7 @@ from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 from configuration import config
 from utils.augment import Cutout, select_autoaugment
-from utils.data_loader import get_test_datalist, get_statistics
+from utils.data_loader import get_statistics#,get_test_datalist
 from utils.data_loader import get_train_datalist
 from utils.method_manager import select_method
 from utils.timer import central_timer
@@ -63,7 +63,6 @@ def main():
     random.seed(args.rnd_seed)
 
     # Transform Definition
-    mean, std, n_classes, inp_size, _ = get_statistics(dataset=args.dataset)
     train_transform = []
     if "cutout" in args.transforms:
         train_transform.append(Cutout(size=16))
@@ -72,25 +71,44 @@ def main():
     if "autoaug" in args.transforms:
         train_transform.append(select_autoaugment(args.dataset))
 
-    train_transform = transforms.Compose(
-        [
-            transforms.Resize((inp_size, inp_size)),
-            transforms.RandomCrop(inp_size, padding=4),
-            transforms.RandomHorizontalFlip(),
-            *train_transform,
+    if "dog" in args.dataset:#dog120
+        crop_im_size = 224
+        n_classes = 120
+        mean, std, _, _, _ = get_statistics(dataset='imagenet1000')
+        train_transform = transforms.Compose([
+            transforms.RandomResizedCrop(size=crop_im_size),
+            transforms.RandomHorizontalFlip(0.5),
             transforms.ToTensor(),
             transforms.Normalize(mean, std),
-        ]
-    )
-    logger.info(f"Using train-transforms {train_transform}")
+        ])
+        logger.info(f"Using train-transforms {train_transform}")
+        test_transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(crop_im_size),
+            transforms.ToTensor(),
+            transforms.Normalize(mean, std),
+        ])
+    else:#TinyImagenet,cifar100
+        mean, std, n_classes, inp_size, _ = get_statistics(dataset=args.dataset)
+        train_transform = transforms.Compose(
+            [
+                transforms.Resize((inp_size, inp_size)),
+                transforms.RandomCrop(inp_size, padding=4),
+                transforms.RandomHorizontalFlip(),
+                *train_transform,
+                transforms.ToTensor(),
+                transforms.Normalize(mean, std),
+            ]
+        )
+        logger.info(f"Using train-transforms {train_transform}")
 
-    test_transform = transforms.Compose(
-        [
-            transforms.Resize((inp_size, inp_size)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean, std),
-        ]
-    )
+        test_transform = transforms.Compose(
+            [
+                transforms.Resize((inp_size, inp_size)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean, std),
+            ]
+        )
 
     logger.info(f"[1] Select a CIL method ({args.mode})")
     criterion = nn.CrossEntropyLoss(reduction="mean")
@@ -129,7 +147,7 @@ def main():
             if args.dataset == "TinyImagenet":
                 with open(f"collections/tinyimagenet200/{colname}.json","r") as f: X = json.load(f)
                 test_size = 0.05
-            else:
+            else:#dog120, cifar100
                 with open(f"collections/{args.dataset}/{colname}.json","r") as f: X = json.load(f)
                 test_size = 0.1
             y = [item['label'] for item in X]
@@ -147,14 +165,6 @@ def main():
         #*********************************************************************************************************
         
 
-
-
-        # Reduce datalist in Debug mode
-        if args.debug:
-            random.shuffle(cur_train_datalist)
-            random.shuffle(cur_test_datalist)
-            cur_train_datalist = cur_train_datalist[:2560]
-            cur_test_datalist = cur_test_datalist[:2560]
 
         logger.info("[2-2] Set environment for the current task")
         method.set_current_dataset(cur_train_datalist, cur_test_datalist)
@@ -181,31 +191,18 @@ def main():
             )
             if args.mode == "joint":
                 logger.info(f"joint accuracy: {task_acc}")
-
+        """
         elif args.stream_env == "online":
             # Online Train
             logger.info("Train over streamed data once")
-            method.train(
-                cur_iter=cur_iter,
-                n_epoch=1,
-                batch_size=args.batchsize,
-                n_worker=args.n_worker,
-            )
-
+            method.train(cur_iter=cur_iter,n_epoch=1,batch_size=args.batchsize,n_worker=args.n_worker,)
             method.update_memory(cur_iter)
-
             # No stremed training data, train with only memory_list
             method.set_current_dataset([], cur_test_datalist)
-
             logger.info("Train over memory")
-            task_acc, eval_dict = method.train(
-                cur_iter=cur_iter,
-                n_epoch=args.n_epoch,
-                batch_size=args.batchsize,
-                n_worker=args.n_worker,
-            )
-
+            task_acc, eval_dict = method.train(cur_iter=cur_iter,n_epoch=args.n_epoch,batch_size=args.batchsize,n_worker=args.n_worker,)
             method.after_task(cur_iter)
+        """
 
         logger.info("[2-4] Update the information for the current task")
         method.after_task(cur_iter)
@@ -233,6 +230,8 @@ def main():
             rmdataset = rmcifar.CIFAR100_BLUR10 if "blur" in args.exp_name else rmcifar.CIFAR100_DISJOINT
         elif "imagenet" in args.dataset.lower():#To match TinyImagenet
             rmdataset = rmtinyimagenet.TINYIMAGENET_BLUR30 if "blur" in args.exp_name else rmtinyimagenet.TINYIMAGENET_DISJOINT
+        elif "dog" in args.dataset:
+            rmdataset = rmdog.DOG_DISJOINT
         else:
             raise NotImplementedError("Implementation Not Found")
         ### load gallery data

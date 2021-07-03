@@ -5,11 +5,11 @@ MODE="ewc" # joint, gdumb, icarl, rm, ewc, rwalk, bic
 # "default": If you want to use the default memory management method.
 MEM_MANAGE="default" # default, random, reservoir, uncertainty, prototype.
 RND_SEED=1
-DATASET="TinyImagenet" # mnist, cifar10, cifar100, TinyImagenet, imagenet
-STREAM="offline" # offline, online
-EXP="blurry30" # disjoint, blurry10, blurry30, general10, general30
-MEM_SIZE=4000 # cifar10: k={200, 500, 1000}, mnist: k=500, cifar100: k=2,000, imagenet: k=20,000
-TRANS="randaug" # multiple choices: cutmix, cutout, randaug, autoaug
+DATASET="dog120" # cifar100, TinyImagenet, dog120
+STREAM="offline" # offline
+EXP="general30" # disjoint, blurry10, blurry30, general10, general30
+MEM_SIZE=600 # cifar100: k=2,000, TinyImagenet: k=4,000, dog120: k=600,
+TRANS="" # multiple choices: cutmix, cutout, randaug, autoaug (TinyImagenet: randaug, cifar100: autoaug)
 
 N_WORKER=4
 JOINT_ACC=0.0 # training all the tasks at once.
@@ -83,6 +83,12 @@ elif [ "$DATASET" == "imagenet" ]; then
     else
         N_INIT_CLS=100 N_CLS_A_TASK=100 N_TASKS=10
     fi
+elif [ "$DATASET" == "dog120" ]; then
+    TOPK=1
+    MODEL_NAME="resnet50"
+    PRETRAIN="--pretrain"
+    N_EPOCH=100; BATCHSIZE=64; LR=0.0001 OPT_NAME="sgd" SCHED_NAME="multistep"
+    N_INIT_CLS=60 N_CLS_A_TASK=20 N_TASKS=4
 else
     echo "Undefined setting"
     exit 1
@@ -101,3 +107,4 @@ python main.py --mode $MODE --mem_manage $MEM_MANAGE --exp_name $EXP \
 
 
 #ln -s /home/iis/Desktop/thesis2/dataset/tinyimagenet200 TinyImagenet
+#ln -s /home/iis/Desktop/thesis2/dataset/dog120 dog120
