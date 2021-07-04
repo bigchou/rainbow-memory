@@ -5,6 +5,8 @@ dataset/cifar100
 dataset/cifar100_png.tar
 dataset/TinyImagenet
 dataset/dog120
+dataset/JD
+dataset/inat17
 
 
 # Byte-compiled / optimized / DLL files

@@ -5,11 +5,11 @@ MODE="ewc" # joint, gdumb, icarl, rm, ewc, rwalk, bic
 # "default": If you want to use the default memory management method.
 MEM_MANAGE="default" # default, random, reservoir, uncertainty, prototype.
 RND_SEED=1
-DATASET="dog120" # cifar100, TinyImagenet, dog120
+DATASET="JD" # cifar100, TinyImagenet, dog120, inat17, JD
 STREAM="offline" # offline
-EXP="general30" # disjoint, blurry10, blurry30, general10, general30
-MEM_SIZE=4000 # cifar100: k=2,000, TinyImagenet: k=4,000, dog120: k=600, inat17: k=4000, jd: k=3000,
-TRANS="" # multiple choices: cutmix, cutout, randaug, autoaug (TinyImagenet: randaug, cifar100: autoaug, dog120:empty, inat17: empty, jd: empty)
+EXP="general40" # disjoint, blurry10, blurry30, general10, general30, general40
+MEM_SIZE=3000 # cifar100: k=2,000, TinyImagenet: k=4,000, dog120: k=600, inat17: k=4000, JD: k=3000
+TRANS="" # multiple choices: cutmix, cutout, randaug, autoaug (cifar100: autoaug, TinyImagenet: randaug, dog120: empty, inat17: empty, JD: empty)
 
 N_WORKER=4
 JOINT_ACC=0.0 # training all the tasks at once.
@@ -77,6 +77,18 @@ elif [ "$DATASET" == "dog120" ]; then
     PRETRAIN="--pretrain"
     N_EPOCH=100; BATCHSIZE=64; LR=0.0001 OPT_NAME="sgd" SCHED_NAME="multistep"
     N_INIT_CLS=60 N_CLS_A_TASK=20 N_TASKS=4
+elif [ "$DATASET" == "inat17" ]; then
+    TOPK=1
+    MODEL_NAME="resnet50"
+    PRETRAIN="--pretrain"
+    N_EPOCH=100; BATCHSIZE=64; LR=0.0001 OPT_NAME="sgd" SCHED_NAME="multistep"
+    N_INIT_CLS=100 N_CLS_A_TASK=25 N_TASKS=5
+elif [ "$DATASET" == "JD" ]; then
+    TOPK=1
+    MODEL_NAME="resnet50"
+    PRETRAIN="--pretrain"
+    N_EPOCH=100; BATCHSIZE=32; LR=0.0001 OPT_NAME="sgd" SCHED_NAME="multistep"
+    N_INIT_CLS=1343 N_CLS_A_TASK=700 N_TASKS=3
 else
     echo "Undefined setting"
     exit 1
@@ -96,3 +108,5 @@ python main.py --mode $MODE --mem_manage $MEM_MANAGE --exp_name $EXP \
 
 #ln -s /home/iis/Desktop/thesis2/dataset/tinyimagenet200 TinyImagenet
 #ln -s /home/iis/Desktop/thesis2/dataset/dog120 dog120
+#ln -s /home/iis/Desktop/thesis2/dataset/inat17 inat17
+#ln -s /home/iis/Desktop/Database/JD/JD JD

@@ -4,7 +4,7 @@ import random
 from collections import defaultdict
 
 import numpy as np
-import torch, rmcifar, pdb, json, rmtinyimagenet, rmdog
+import torch, rmcifar, pdb, json, rmtinyimagenet, rmdog, rminature, rmjd
 from copy import deepcopy
 from randaugment import RandAugment
 from sklearn.model_selection import train_test_split
@@ -71,9 +71,14 @@ def main():
     if "autoaug" in args.transforms:
         train_transform.append(select_autoaugment(args.dataset))
 
-    if "dog" in args.dataset:#dog120
+    if args.dataset in ["dog120","inat17","JD"]:#dog120,inat17, JD
+        if args.dataset == "dog120":
+            n_classes = 120
+        elif args.dataset == "inat17":
+            n_classes = 200
+        elif args.dataset == "JD":
+            n_classes = 2743
         crop_im_size = 224
-        n_classes = 120
         mean, std, _, _, _ = get_statistics(dataset='imagenet1000')
         train_transform = transforms.Compose([
             transforms.RandomResizedCrop(size=crop_im_size),
@@ -147,11 +152,28 @@ def main():
             if args.dataset == "TinyImagenet":
                 with open(f"collections/tinyimagenet200/{colname}.json","r") as f: X = json.load(f)
                 test_size = 0.05
-            else:#dog120, cifar100
+            else:#dog120, cifar100, inat17, JD
                 with open(f"collections/{args.dataset}/{colname}.json","r") as f: X = json.load(f)
-                test_size = 0.1
-            y = [item['label'] for item in X]
-            X_train, X_val, _, _ = train_test_split(X, y,stratify=y, test_size=test_size,random_state=args.rnd_seed)# seed for reproducibility
+                if args.dataset in ["cifar100","dog120"]:#cifar100, dog120
+                    test_size = 0.1
+                else:#inat17
+                    test_size = 0.05
+
+            if args.dataset == "JD":
+                label_to_item = {}
+                for item in X:
+                    if item['label'] not in label_to_item:
+                        label_to_item[item['label']] = []
+                    label_to_item[item['label']].append(item)
+                X_train, X_val = [], []
+                for label in label_to_item:
+                    X_train.extend(label_to_item[label][2:])
+                    X_val.extend(label_to_item[label][:2])
+            else:#cifar100, TinyImagenet, dog120, inat17
+                y = [item['label'] for item in X]
+                X_train, X_val, _, _ = train_test_split(X, y,stratify=y, test_size=test_size,random_state=args.rnd_seed)# seed for reproducibility
+            
+
             if cur_iter == cur_iter_:
                 cur_train_datalist.extend(X_train)
                 logger.info(f"[Train] Get datalist {cur_iter_} from {colname}.json")
@@ -232,6 +254,10 @@ def main():
             rmdataset = rmtinyimagenet.TINYIMAGENET_BLUR30 if "blur" in args.exp_name else rmtinyimagenet.TINYIMAGENET_DISJOINT
         elif "dog" in args.dataset:
             rmdataset = rmdog.DOG_DISJOINT
+        elif "inat17" == args.dataset:
+            rmdataset = rminature.INAT_DISJOINT
+        elif "JD" == args.dataset:
+            rmdataset = rmjd.JD_DISJOINT
         else:
             raise NotImplementedError("Implementation Not Found")
         ### load gallery data
